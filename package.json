@@ -1,7 +1,16 @@
 {
   "name": "anime-api",
   "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vercel dev",
+    "start": "node api/download.js"
+  },
   "dependencies": {
-    "puppeteer": "^24.3.1"
+    "puppeteer": "^24.3.1",
+    "node-fetch": "^3.3.2"
+  },
+  "engines": {
+    "node": "18.x"
   }
 }
