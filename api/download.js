@@ -3,18 +3,22 @@ const cheerio = require('cheerio')
 
 module.exports = async (req, res) => {
     const { url } = req.query
-    if (!url) {
-        return res.status(400).json({ status:false, msg:"url missing" })
-    }
+    if (!url) return res.status(400).json({ status:false, msg:"url missing" })
 
     try {
-        // 1️⃣ Rareanimes page
-        const { data } = await axios.get(url)
-        const $ = cheerio.load(data)
+        // ✅ Browser jaisa headers add karo
+        const { data } = await axios.get(url, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0 Safari/537.36',
+                'Referer': 'https://rareanimes.app/',
+                'Accept-Language': 'en-US,en;q=0.9'
+            }
+        })
 
+        const $ = cheerio.load(data)
         const title = $('title').text().trim()
 
-        // 2️⃣ codedew link
+        // codedew link
         let codedew = null
         $('a').each((i, el) => {
             const h = $(el).attr('href')
@@ -25,11 +29,18 @@ module.exports = async (req, res) => {
             return res.json({ status:false, msg:"download page not found" })
         }
 
-        // 3️⃣ codedew download links
-        const { data: d2 } = await axios.get(codedew)
-        const $2 = cheerio.load(d2)
+        // ✅ codedew page headers bhi browser jaisa
+        const { data: d2 } = await axios.get(codedew, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0 Safari/537.36',
+                'Referer': url,
+                'Accept-Language': 'en-US,en;q=0.9'
+            }
+        })
 
+        const $2 = cheerio.load(d2)
         let downloads = []
+
         $2('a').each((i, el) => {
             const link = $2(el).attr('href')
             const text = $2(el).text().trim()
