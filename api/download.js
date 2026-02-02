@@ -1,62 +1,53 @@
-const axios = require('axios')
-const cheerio = require('cheerio')
+const puppeteer = require('puppeteer');
 
 module.exports = async (req, res) => {
-    const { url } = req.query
-    if (!url) return res.status(400).json({ status:false, msg:"url missing" })
+    const { url } = req.query;
+    if(!url) return res.status(400).json({ status:false, msg:"URL missing" });
 
     try {
-        // ✅ Browser jaisa headers add karo
-        const { data } = await axios.get(url, {
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0 Safari/537.36',
-                'Referer': 'https://rareanimes.app/',
-                'Accept-Language': 'en-US,en;q=0.9'
-            }
-        })
+        const browser = await puppeteer.launch({
+            headless: true,
+            args: ['--no-sandbox','--disable-setuid-sandbox']
+        });
+        const page = await browser.newPage();
 
-        const $ = cheerio.load(data)
-        const title = $('title').text().trim()
+        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0 Safari/537.36');
+        await page.goto(url, { waitUntil: 'networkidle2' });
 
-        // codedew link
-        let codedew = null
-        $('a').each((i, el) => {
-            const h = $(el).attr('href')
-            if (h && h.includes('codedew.com/multiquality')) codedew = h
-        })
+        // ✅ codedew link nikalna
+        const codedewLink = await page.evaluate(() => {
+            const a = document.querySelector('a[href*="codedew.com/multiquality"]');
+            return a ? a.href : null;
+        });
 
-        if (!codedew) {
-            return res.json({ status:false, msg:"download page not found" })
+        if(!codedewLink) {
+            await browser.close();
+            return res.json({ status:false, msg:"Codedew link not found" });
         }
 
-        // ✅ codedew page headers bhi browser jaisa
-        const { data: d2 } = await axios.get(codedew, {
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0 Safari/537.36',
-                'Referer': url,
-                'Accept-Language': 'en-US,en;q=0.9'
-            }
-        })
+        // codedew page open
+        await page.goto(codedewLink, { waitUntil: 'networkidle2' });
 
-        const $2 = cheerio.load(d2)
-        let downloads = []
+        // final download links nikalna
+        const downloads = await page.evaluate(() => {
+            const arr = [];
+            document.querySelectorAll('a').forEach(a => {
+                if(/480|720|1080/i.test(a.innerText)) {
+                    arr.push({ quality: a.innerText.trim(), link: a.href });
+                }
+            });
+            return arr;
+        });
 
-        $2('a').each((i, el) => {
-            const link = $2(el).attr('href')
-            const text = $2(el).text().trim()
-            if (link && /480|720|1080/i.test(text)) {
-                downloads.push({ quality: text, link })
-            }
-        })
+        await browser.close();
 
         return res.json({
-            status: true,
-            title,
-            source: codedew,
+            status:true,
+            source:codedewLink,
             downloads
-        })
+        });
 
-    } catch (e) {
-        return res.status(500).json({ status:false, error: e.message })
+    } catch(e) {
+        return res.status(500).json({ status:false, error:e.message });
     }
 }
